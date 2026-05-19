@@ -1,0 +1,123 @@
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark"><img src="/imagen/Logo%20Alert.png" alt="StockAlert" /></span>
+      <div>
+        <strong>StockAlert</strong>
+        <small>SaaS multiempresa</small>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" aria-label="Navegacion principal">
+      @for (group of visibleNavGroups; track group.title) {
+        <section class="nav-group">
+          <div class="nav-group-title">
+            @if (group.icon) {
+              <mat-icon>{{ group.icon }}</mat-icon>
+            }
+            <span>{{ group.title }}</span>
+          </div>
+          @for (item of group.items; track item.key) {
+            <button
+              type="button"
+              class="nav-item"
+              [routerLink]="['/app', item.key]"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: true }"
+            >
+              <mat-icon>{{ item.icon }}</mat-icon>
+              <span>{{ item.label }}</span>
+              <small>{{ item.scope }}</small>
+            </button>
+          }
+        </section>
+      }
+    </nav>
+
+    <div class="sidebar-session">
+      <div class="session-user">
+        <span>{{ initials }}</span>
+        <div>
+          <strong>{{ auth.user()?.name }}</strong>
+          <small>{{ roleLabel }}</small>
+        </div>
+      </div>
+      <button class="sidebar-password" type="button" (click)="openPasswordModal()">
+        <mat-icon>lock_reset</mat-icon>
+        Clave
+      </button>
+      <button class="sidebar-logout" type="button" (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        Salir
+      </button>
+    </div>
+  </aside>
+
+  <main class="workspace">
+    <router-outlet />
+  </main>
+</div>
+
+@if (passwordModalOpen()) {
+  <div class="modal-backdrop" (click)="closePasswordModal()">
+    <section class="modal sale-modal" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div class="modal-title">
+          <span class="modal-icon admin"><mat-icon>lock_reset</mat-icon></span>
+          <div>
+            <h2>Cambiar contrasena</h2>
+            <p>Actualiza tu clave de acceso de forma segura.</p>
+          </div>
+        </div>
+        <button class="modal-close" type="button" (click)="closePasswordModal()" aria-label="Cerrar modal"><mat-icon>close</mat-icon></button>
+      </header>
+
+      <div class="modal-body">
+        @if (passwordError()) {
+          <div class="inline-error">
+            <mat-icon>error</mat-icon>
+            <span>{{ passwordError() }}</span>
+          </div>
+        }
+
+        @if (passwordSuccess()) {
+          <div class="audit-status-card">
+            <mat-icon>check_circle</mat-icon>
+            <div>
+              <h3>Contrasena actualizada</h3>
+              <p>{{ passwordSuccess() }}</p>
+            </div>
+          </div>
+        }
+
+        <div class="form-grid" style="grid-template-columns: 1fr">
+          <label class="form-field">
+            <span>Contrasena actual</span>
+            <input #currentPassword type="password" autocomplete="current-password" />
+          </label>
+          <label class="form-field">
+            <span>Nueva contrasena</span>
+            <input #newPassword type="password" autocomplete="new-password" />
+          </label>
+          <label class="form-field">
+            <span>Confirmar nueva contrasena</span>
+            <input #confirmPassword type="password" autocomplete="new-password" />
+          </label>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button class="secondary-btn" type="button" (click)="closePasswordModal()">Cancelar</button>
+        <button
+          class="primary-btn"
+          type="button"
+          [disabled]="passwordSaving()"
+          (click)="changePassword(currentPassword.value, newPassword.value, confirmPassword.value)"
+        >
+          <mat-icon>save</mat-icon>
+          {{ passwordSaving() ? 'Guardando...' : 'Guardar' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}

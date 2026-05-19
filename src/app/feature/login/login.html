@@ -1,0 +1,52 @@
+<main class="login-page">
+  <div class="orb orb-blue"></div>
+  <div class="orb orb-cyan"></div>
+  <div class="orb orb-violet"></div>
+  <div class="orb orb-teal"></div>
+
+  <section class="login-card">
+    <div class="login-content">
+      <div class="brand">
+        <span class="brand-logo"><img src="/imagen/Logo%20Alert.png" alt="StockAlert" /></span>
+        <div>
+          <strong>StockAlert</strong>
+          <small>Gestion inteligente de ventas e inventario</small>
+        </div>
+      </div>
+
+      <div class="copy">
+        <span class="eyebrow">Acceso seguro</span>
+        <h1>Ingresa a StockAlert</h1>
+        <p>Gestiona ventas, inventario y alertas inteligentes desde el panel de tu empresa.</p>
+      </div>
+
+      <form [formGroup]="form" (ngSubmit)="submit()">
+        <label>
+          Usuario
+          <div><mat-icon>person</mat-icon><input type="text" formControlName="username" placeholder="superadmin" /></div>
+        </label>
+        <label>
+          Contrasena
+          <div><mat-icon>lock</mat-icon><input type="password" formControlName="password" placeholder="Contrasena" /></div>
+        </label>
+        <div class="form-row">
+          <label class="check"><input type="checkbox" formControlName="remember" /> Recordarme</label>
+          <a href="#">Recuperar contrasena</a>
+        </div>
+        @if (errorMessage) {
+          <p class="login-error">{{ errorMessage }}</p>
+        }
+        <button class="login-btn" type="submit" [disabled]="loading">
+          <mat-icon>{{ loading ? 'hourglass_top' : 'login' }}</mat-icon>
+          {{ loading ? 'Ingresando...' : 'Entrar al dashboard' }}
+        </button>
+      </form>
+
+      <div class="login-meta">
+        <span><mat-icon>business</mat-icon>Multiempresa</span>
+        <span><mat-icon>admin_panel_settings</mat-icon>Roles</span>
+        <span><mat-icon>notifications_active</mat-icon>Alertas</span>
+      </div>
+    </div>
+  </section>
+</main>
