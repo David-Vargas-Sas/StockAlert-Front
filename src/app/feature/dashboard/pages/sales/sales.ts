@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { finalize } from 'rxjs';
+import { CustomerItem, CustomersService } from '../../../../services/customers';
 import { ProductItem, ProductsService } from '../../../../services/products';
 import { CreateSaleRequest, SaleItem, SaleRecord, SalesPageResponse, SalesService } from '../../../../services/sales';
 import { PageTitle } from '../../shared/page-title';
@@ -103,6 +104,15 @@ import { PageTitle } from '../../shared/page-title';
 
               <div class="sale-form">
                 <label class="form-field product-field">
+                  <span>Cliente</span>
+                  <select [value]="selectedCustomerId()" (change)="selectedCustomerId.set(Number($any($event.target).value))">
+                    <option value="0">Selecciona cliente</option>
+                    @for (customer of activeCustomers; track customer.id) {
+                      <option [value]="customer.id">{{ customer.fullName }} - {{ customer.documentNumber }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="form-field product-field">
                   <span>Producto</span>
                   <select [value]="selectedProductId()" (change)="selectedProductId.set(Number($any($event.target).value))">
                     <option value="0">Selecciona producto</option>
@@ -190,10 +200,12 @@ import { PageTitle } from '../../shared/page-title';
 export class SalesPage implements OnInit {
   private readonly salesService = inject(SalesService);
   private readonly productsService = inject(ProductsService);
+  private readonly customersService = inject(CustomersService);
   readonly Number = Number;
 
   readonly sales = signal<SaleRecord[]>([]);
   readonly products = signal<ProductItem[]>([]);
+  readonly customers = signal<CustomerItem[]>([]);
   readonly pageInfo = signal<Omit<SalesPageResponse, 'content'> | null>(null);
   readonly currentPage = signal(0);
   readonly pageSize = 10;
@@ -204,6 +216,7 @@ export class SalesPage implements OnInit {
   readonly createSaleOpen = signal(false);
   readonly creatingSale = signal(false);
   readonly createError = signal('');
+  readonly selectedCustomerId = signal(0);
   readonly selectedProductId = signal(0);
   readonly saleQuantity = signal(1);
   readonly detailOpen = signal(false);
@@ -214,6 +227,7 @@ export class SalesPage implements OnInit {
   ngOnInit(): void {
     this.loadSales();
     this.loadProducts();
+    this.loadCustomers();
   }
 
   get filteredSales(): SaleRecord[] {
@@ -228,6 +242,10 @@ export class SalesPage implements OnInit {
 
   get selectedProduct(): ProductItem | null {
     return this.products().find((product) => product.id === this.selectedProductId()) ?? null;
+  }
+
+  get activeCustomers(): CustomerItem[] {
+    return this.customers().filter((customer) => customer.active !== false);
   }
 
   get selectedProductName(): string {
@@ -280,6 +298,10 @@ export class SalesPage implements OnInit {
     this.productsService.getAll().subscribe({ next: (products) => this.products.set(products), error: () => this.products.set([]) });
   }
 
+  loadCustomers(): void {
+    this.customersService.getAll().subscribe({ next: (customers) => this.customers.set(customers), error: () => this.customers.set([]) });
+  }
+
   previousPage(): void {
     if (!this.pageInfo()?.first) {
       this.loadSales(this.currentPage() - 1);
@@ -294,6 +316,7 @@ export class SalesPage implements OnInit {
 
   openCreateSale(): void {
     this.createError.set('');
+    this.selectedCustomerId.set(0);
     this.selectedProductId.set(0);
     this.saleQuantity.set(1);
     this.createSaleOpen.set(true);
@@ -302,13 +325,20 @@ export class SalesPage implements OnInit {
   closeCreateSale(): void {
     if (!this.creatingSale()) {
       this.createSaleOpen.set(false);
+      this.createError.set('');
     }
   }
 
   saveSale(): void {
     const request: CreateSaleRequest = {
+      customerId: this.selectedCustomerId(),
       items: [{ productId: this.selectedProductId(), quantity: this.saleQuantity() }],
     };
+
+    if (!request.customerId) {
+      this.createError.set('Selecciona un cliente.');
+      return;
+    }
 
     if (!request.items[0].productId || !Number.isInteger(request.items[0].quantity) || request.items[0].quantity < 1) {
       this.createError.set('Selecciona producto y una cantidad valida.');
@@ -329,6 +359,7 @@ export class SalesPage implements OnInit {
       .subscribe({
         next: () => {
           this.createSaleOpen.set(false);
+          this.createError.set('');
           this.loadSales(0);
           this.loadProducts();
         },

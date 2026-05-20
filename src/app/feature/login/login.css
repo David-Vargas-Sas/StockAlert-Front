@@ -307,15 +307,55 @@ a {
   opacity: 0.72;
 }
 
-.login-error {
+.login-feedback {
   margin: 0;
-  border: 1px solid rgba(248, 113, 113, 0.38);
   border-radius: 12px;
-  background: rgba(127, 29, 29, 0.24);
-  color: #fecaca;
   padding: 10px 12px;
   font-size: 13px;
   font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: feedback-in 120ms ease-out;
+}
+
+.login-feedback mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+}
+
+.login-loading {
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  background: rgba(14, 116, 144, 0.18);
+  color: #bae6fd;
+}
+
+.login-loading mat-icon {
+  animation: spin 700ms linear infinite;
+}
+
+.login-error {
+  border: 1px solid rgba(248, 113, 113, 0.46);
+  background: rgba(127, 29, 29, 0.32);
+  color: #fecaca;
+}
+
+@keyframes feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .login-meta {

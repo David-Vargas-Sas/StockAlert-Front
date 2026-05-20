@@ -236,7 +236,7 @@ import { PageTitle } from '../../shared/page-title';
           <section class="modal sale-modal" (click)="$event.stopPropagation()">
             <header class="modal-header">
               <div class="modal-title">
-                <span class="modal-icon"><mat-icon>delete</mat-icon></span>
+                <span class="modal-icon danger"><mat-icon>delete</mat-icon></span>
                 <div>
                   <h2>Eliminar producto</h2>
                   <p>Esta accion quitara el producto del inventario.</p>
@@ -422,6 +422,7 @@ export class ProductsPage implements OnInit {
     if (!this.creatingProduct()) {
       this.createProductOpen.set(false);
       this.editingProductId.set(null);
+      this.createError.set('');
     }
   }
 
@@ -511,6 +512,7 @@ export class ProductsPage implements OnInit {
           this.products.update((products) => products.filter((item) => item.id !== product.id));
           this.deleteProductOpen.set(false);
           this.productToDelete.set(null);
+          this.deleteError.set('');
 
           if (this.selectedProduct()?.id === product.id) {
             this.closeProductDetail();
@@ -559,6 +561,7 @@ export class ProductsPage implements OnInit {
           );
           this.createProductOpen.set(false);
           this.editingProductId.set(null);
+          this.createError.set('');
 
           if (!this.isLowStockMode && !editingProductId) {
             this.loadProducts(0);

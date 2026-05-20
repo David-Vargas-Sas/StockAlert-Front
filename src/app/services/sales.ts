@@ -51,6 +51,7 @@ export interface SalesQuery {
 }
 
 export interface CreateSaleRequest {
+  customerId: number;
   items: {
     productId: number;
     quantity: number;

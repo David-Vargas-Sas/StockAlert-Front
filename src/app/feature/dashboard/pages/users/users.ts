@@ -4,11 +4,12 @@ import { finalize, forkJoin } from 'rxjs';
 import { AuthService, ROLE_LABELS, UserRole } from '../../../../services/auth';
 import { Role, RolesService } from '../../../../services/roles';
 import { AppUser, UsersPageResponse, UsersService } from '../../../../services/users';
+import { FeedbackModal, FeedbackType } from '../../shared/feedback-modal';
 import { PageTitle } from '../../shared/page-title';
 
 @Component({
   selector: 'app-users-page',
-  imports: [MatIconModule, PageTitle],
+  imports: [MatIconModule, PageTitle, FeedbackModal],
   template: `
     <section class="page">
       <app-page-title title="Usuarios" subtitle="Administra acceso, roles y estado de usuarios por empresa." />
@@ -42,6 +43,13 @@ import { PageTitle } from '../../shared/page-title';
           <button class="secondary-btn" type="button" (click)="loadUsers()">Reintentar</button>
         </div>
       }
+
+      <app-feedback-modal
+        [title]="successMessage()"
+        [type]="feedbackType()"
+        message="El estado del usuario quedo actualizado."
+        (dismiss)="successMessage.set('')"
+      />
 
       <div class="table-card">
         <table>
@@ -80,7 +88,12 @@ import { PageTitle } from '../../shared/page-title';
                 </td>
                 <td class="actions">
                   <button type="button" aria-label="Editar usuario" (click)="openEditUser(user)"><mat-icon>edit</mat-icon></button>
-                  <button type="button" aria-label="Cambiar estado" (click)="openEditUser(user)">
+                  <button
+                    type="button"
+                    [attr.aria-label]="user.active ? 'Desactivar usuario' : 'Activar usuario'"
+                    [disabled]="statusUpdatingId() === user.id"
+                    (click)="toggleUserStatus(user)"
+                  >
                     <mat-icon>{{ user.active ? 'toggle_on' : 'toggle_off' }}</mat-icon>
                   </button>
                 </td>
@@ -212,6 +225,9 @@ export class UsersPage implements OnInit {
   readonly editUserOpen = signal(false);
   readonly savingUser = signal(false);
   readonly editError = signal('');
+  readonly successMessage = signal('');
+  readonly feedbackType = signal<FeedbackType>('success');
+  readonly statusUpdatingId = signal<number | null>(null);
   readonly editingUserId = signal<number | null>(null);
   readonly editUsername = signal('');
   readonly editPassword = signal('');
@@ -326,6 +342,8 @@ export class UsersPage implements OnInit {
   closeEditUser(): void {
     if (!this.savingUser()) {
       this.editUserOpen.set(false);
+      this.editingUserId.set(null);
+      this.editError.set('');
     }
   }
 
@@ -333,6 +351,29 @@ export class UsersPage implements OnInit {
     this.selectedRoleIds.update((selected) =>
       selected.includes(roleId) ? selected.filter((id) => id !== roleId) : [...selected, roleId],
     );
+  }
+
+  toggleUserStatus(user: AppUser): void {
+    this.error.set('');
+    this.successMessage.set('');
+    this.statusUpdatingId.set(user.id);
+
+    this.usersService
+      .update(user.id, {
+        email: user.email,
+        fullName: user.fullName,
+        active: !user.active,
+        roleIds: user.roles.map((role) => role.id),
+      })
+      .pipe(finalize(() => this.statusUpdatingId.set(null)))
+      .subscribe({
+        next: (updatedUser) => {
+          this.users.update((users) => users.map((item) => (item.id === updatedUser.id ? updatedUser : item)));
+          this.feedbackType.set(updatedUser.active ? 'activate' : 'deactivate');
+          this.successMessage.set(updatedUser.active ? 'Usuario activado correctamente' : 'Usuario desactivado correctamente');
+        },
+        error: (error: Error) => this.error.set(error.message || 'No fue posible actualizar el estado del usuario.'),
+      });
   }
 
   saveUser(fullName: string, email: string, username: string, password: string): void {
@@ -389,6 +430,8 @@ export class UsersPage implements OnInit {
       .subscribe({
         next: () => {
           this.editUserOpen.set(false);
+          this.editingUserId.set(null);
+          this.editError.set('');
           this.loadUsers(userId ? this.currentPage() : 0);
         },
         error: (error: Error) => this.editError.set(error.message || 'No fue posible guardar el usuario.'),

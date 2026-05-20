@@ -171,7 +171,7 @@ import { PageTitle } from '../../shared/page-title';
                     <h3>{{ permissionsService.moduleLabel(group.module) }}</h3>
                     <div>
                       @for (permission of permissionsForGroup(group); track permission.id) {
-                        <label class="permission-option">
+                        <label class="permission-option" [class.selected]="selectedPermissionIds().includes(permission.id)">
                           <input
                             type="checkbox"
                             [checked]="selectedPermissionIds().includes(permission.id)"
@@ -303,6 +303,8 @@ export class RolesPage implements OnInit {
   closeCreateRole(): void {
     if (!this.creatingRole()) {
       this.createRoleOpen.set(false);
+      this.editingRoleId.set(null);
+      this.createError.set('');
     }
   }
 
@@ -354,6 +356,7 @@ export class RolesPage implements OnInit {
         next: (role) => {
           this.createRoleOpen.set(false);
           this.editingRoleId.set(null);
+          this.createError.set('');
           this.loadRolesAndPermissions(role.id);
         },
         error: (error: Error) => this.createError.set(error.message || 'No fue posible crear el rol.'),

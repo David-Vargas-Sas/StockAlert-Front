@@ -2,11 +2,12 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { finalize } from 'rxjs';
 import { CompaniesPageResponse, CompaniesService, Company } from '../../../../services/companies';
+import { FeedbackModal, FeedbackType } from '../../shared/feedback-modal';
 import { PageTitle } from '../../shared/page-title';
 
 @Component({
   selector: 'app-companies-page',
-  imports: [MatIconModule, PageTitle],
+  imports: [MatIconModule, PageTitle, FeedbackModal],
   template: `
     <section class="page">
       <app-page-title title="Empresas" subtitle="Modulo exclusivo para SUPER_ADMIN." />
@@ -37,6 +38,13 @@ import { PageTitle } from '../../shared/page-title';
           <button class="secondary-btn" type="button" (click)="loadCompanies()">Reintentar</button>
         </div>
       }
+
+      <app-feedback-modal
+        [title]="successMessage()"
+        [type]="feedbackType()"
+        [message]="successDetail()"
+        (dismiss)="successMessage.set('')"
+      />
 
       <div class="table-card company-table-card">
         <table class="company-table">
@@ -316,6 +324,9 @@ export class CompaniesPage implements OnInit {
   readonly creatingAdmin = signal(false);
   readonly adminError = signal('');
   readonly selectedAdminCompany = signal<Company | null>(null);
+  readonly successMessage = signal('');
+  readonly successDetail = signal('');
+  readonly feedbackType = signal<FeedbackType>('success');
   readonly pageSize = 10;
 
   ngOnInit(): void {
@@ -373,6 +384,7 @@ export class CompaniesPage implements OnInit {
 
   openCreateCompany(): void {
     this.createError.set('');
+    this.successMessage.set('');
     this.editingCompanyId.set(null);
     this.setCompanyForm();
     this.companyFormActive.set(true);
@@ -381,6 +393,7 @@ export class CompaniesPage implements OnInit {
 
   openEditCompany(company: Company): void {
     this.createError.set('');
+    this.successMessage.set('');
     this.editingCompanyId.set(company.id);
     this.setCompanyForm(company);
     this.companyFormActive.set(company.active);
@@ -390,11 +403,14 @@ export class CompaniesPage implements OnInit {
   closeCreateCompany(): void {
     if (!this.creatingCompany()) {
       this.createCompanyOpen.set(false);
+      this.editingCompanyId.set(null);
+      this.createError.set('');
     }
   }
 
   openCreateAdmin(company: Company): void {
     this.adminError.set('');
+    this.successMessage.set('');
     this.selectedAdminCompany.set(company);
     this.createAdminOpen.set(true);
   }
@@ -402,6 +418,8 @@ export class CompaniesPage implements OnInit {
   closeCreateAdmin(): void {
     if (!this.creatingAdmin()) {
       this.createAdminOpen.set(false);
+      this.selectedAdminCompany.set(null);
+      this.adminError.set('');
     }
   }
 
@@ -434,6 +452,9 @@ export class CompaniesPage implements OnInit {
         next: () => {
           this.createAdminOpen.set(false);
           this.selectedAdminCompany.set(null);
+          this.feedbackType.set('create');
+          this.successMessage.set('Administrador creado correctamente');
+          this.successDetail.set('El usuario administrador quedo asociado a la empresa.');
         },
         error: (error: Error) => this.adminError.set(error.message || 'No fue posible crear el administrador.'),
       });
@@ -494,6 +515,9 @@ export class CompaniesPage implements OnInit {
         next: () => {
           this.createCompanyOpen.set(false);
           this.editingCompanyId.set(null);
+          this.feedbackType.set(editingCompanyId ? 'edit' : 'create');
+          this.successMessage.set(editingCompanyId ? 'Empresa actualizada correctamente' : 'Empresa creada correctamente');
+          this.successDetail.set(editingCompanyId ? 'Los datos de la empresa quedaron actualizados.' : 'La empresa quedo registrada en StockAlert.');
           this.loadCompanies(editingCompanyId ? this.currentPage() : 0);
         },
         error: (error: Error) => this.createError.set(error.message || 'No fue posible crear la empresa.'),

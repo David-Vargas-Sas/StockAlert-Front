@@ -7,7 +7,6 @@ import { CustomersPage } from './feature/dashboard/pages/customers/customers';
 import { DashboardHomePage } from './feature/dashboard/pages/dashboard-home/dashboard-home';
 import { InventoryPage } from './feature/dashboard/pages/inventory/inventory';
 import { ProductsPage } from './feature/dashboard/pages/products/products';
-import { PurchasesPage } from './feature/dashboard/pages/purchases/purchases';
 import { RolesPage } from './feature/dashboard/pages/roles/roles';
 import { SalesPage } from './feature/dashboard/pages/sales/sales';
 import { SuppliersPage } from './feature/dashboard/pages/suppliers/suppliers';
@@ -30,7 +29,12 @@ export const routes: Routes = [
       { path: 'productos', component: ProductsPage, canActivate: [authGuard], data: { roles: ['SUPER_ADMIN', 'ADMINISTRADOR', 'BODEGUERO', 'CONSULTOR'], permissions: ['PRODUCT_READ'] } },
       { path: 'inventario', component: InventoryPage, canActivate: [authGuard], data: { roles: ['SUPER_ADMIN', 'ADMINISTRADOR', 'BODEGUERO', 'CONSULTOR'], permissions: ['INVENTORY_READ'] } },
       { path: 'ventas', component: SalesPage, canActivate: [authGuard], data: { roles: ['SUPER_ADMIN', 'ADMINISTRADOR', 'VENDEDOR', 'CONSULTOR'], permissions: ['SALE_READ'] } },
-      { path: 'compras', component: PurchasesPage, canActivate: [authGuard], data: { roles: ['SUPER_ADMIN', 'ADMINISTRADOR', 'BODEGUERO', 'CONSULTOR'], permissions: ['PURCHASE_READ'] } },
+      {
+        path: 'compras',
+        loadComponent: () => import('./feature/dashboard/pages/purchases/purchases').then((m) => m.PurchasesPage),
+        canActivate: [authGuard],
+        data: { roles: ['SUPER_ADMIN', 'ADMINISTRADOR', 'BODEGUERO', 'CONSULTOR'], permissions: ['PURCHASE_READ'] },
+      },
       { path: 'clientes', component: CustomersPage, canActivate: [authGuard], data: { roles: ['SUPER_ADMIN', 'ADMINISTRADOR', 'VENDEDOR', 'CONSULTOR'], permissions: ['CUSTOMER_READ'] } },
       { path: 'proveedores', component: SuppliersPage, canActivate: [authGuard], data: { roles: ['SUPER_ADMIN', 'ADMINISTRADOR', 'BODEGUERO', 'CONSULTOR'], permissions: ['SUPPLIER_READ'] } },
       { path: 'alertas', component: AlertsPage, canActivate: [authGuard], data: { roles: ['SUPER_ADMIN', 'ADMINISTRADOR', 'BODEGUERO', 'CONSULTOR'], permissions: ['ALERT_READ'] } },
