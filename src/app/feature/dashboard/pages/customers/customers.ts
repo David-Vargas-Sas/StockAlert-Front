@@ -3,13 +3,15 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { MatIconModule } from '@angular/material/icon';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../../../services/auth';
-import { CreateCustomerRequest, CustomerItem, CustomersService, UpdateCustomerRequest } from '../../../../services/customers';
+import { CreateCustomerRequest, CustomerInvoice, CustomerInvoicesPageResponse, CustomerItem, CustomersService, UpdateCustomerRequest } from '../../../../services/customers';
+import { SalesService } from '../../../../services/sales';
+import { DashboardSelect, DashboardSelectOption } from '../../shared/dashboard-select';
 import { FeedbackModal, FeedbackType } from '../../shared/feedback-modal';
 import { PageTitle } from '../../shared/page-title';
 
 @Component({
   selector: 'app-customers-page',
-  imports: [MatIconModule, PageTitle, ReactiveFormsModule, FeedbackModal],
+  imports: [MatIconModule, PageTitle, ReactiveFormsModule, FeedbackModal, DashboardSelect],
   template: `
     <section class="page">
       <app-page-title title="Clientes" subtitle="Administra clientes, contacto y estado comercial." />
@@ -19,11 +21,7 @@ import { PageTitle } from '../../shared/page-title';
           <mat-icon>search</mat-icon>
           <input placeholder="Buscar cliente" [value]="search()" (input)="search.set(inputValue($event))" />
         </label>
-        <select [value]="statusFilter()" (change)="statusFilter.set(inputValue($event))">
-          <option value="all">Todos los estados</option>
-          <option value="active">Activo</option>
-          <option value="inactive">Desactivado</option>
-        </select>
+        <app-dashboard-select [options]="statusOptions" [value]="statusFilter()" (valueChange)="statusFilter.set($event)" />
         <button class="primary-btn" type="button" [disabled]="!canCreateCustomer()" (click)="openCreateCustomer()">
           <mat-icon>person_add</mat-icon>
           Crear cliente
@@ -184,13 +182,52 @@ import { PageTitle } from '../../shared/page-title';
               } @else if (detailError()) {
                 <div class="inline-error"><mat-icon>error</mat-icon><span>{{ detailError() }}</span></div>
               } @else if (selectedCustomer()) {
-                <div class="detail-grid">
-                <div><span>Documento</span><strong>{{ selectedCustomer()?.documentNumber }}</strong></div>
-                <div><span>Correo</span><strong>{{ selectedCustomer()?.email || '-' }}</strong></div>
-                <div><span>Telefono</span><strong>{{ selectedCustomer()?.phone || '-' }}</strong></div>
-                <div><span>Direccion</span><strong>{{ selectedCustomer()?.address || '-' }}</strong></div>
-                <div><span>Estado</span><strong>{{ selectedCustomer()?.active === false ? 'Desactivado' : 'Activo' }}</strong></div>
-              </div>
+                <div class="customer-detail-grid">
+                  <div><mat-icon>badge</mat-icon><span>Documento</span><strong>{{ selectedCustomer()?.documentNumber }}</strong></div>
+                  <div><mat-icon>mail</mat-icon><span>Correo</span><strong>{{ selectedCustomer()?.email || '-' }}</strong></div>
+                  <div><mat-icon>call</mat-icon><span>Telefono</span><strong>{{ selectedCustomer()?.phone || '-' }}</strong></div>
+                  <div><mat-icon>location_on</mat-icon><span>Direccion</span><strong>{{ selectedCustomer()?.address || '-' }}</strong></div>
+                  <div><mat-icon>verified_user</mat-icon><span>Estado</span><strong>{{ selectedCustomer()?.active === false ? 'Desactivado' : 'Activo' }}</strong></div>
+                </div>
+
+                <section class="customer-invoices">
+                  <div class="panel-header">
+                    <div><h3>Historial de facturas</h3><p>{{ customerInvoicesPageInfo()?.totalElements ?? 0 }} ventas registradas</p></div>
+                    <mat-icon>receipt_long</mat-icon>
+                  </div>
+
+                  @if (customerInvoicesLoading()) {
+                    <div class="table-empty"><span class="loading-dot"></span><strong>Cargando facturas</strong><span>Consultando ventas del cliente.</span></div>
+                  } @else if (customerInvoicesError()) {
+                    <div class="inline-error"><mat-icon>error</mat-icon><span>{{ customerInvoicesError() }}</span></div>
+                  } @else {
+                    <div class="customer-invoice-list">
+                      @for (invoice of customerInvoices(); track invoice.id) {
+                        <article class="customer-invoice-card">
+                          <div>
+                            <strong>{{ invoice.saleNumber || ('V-' + invoice.id) }}</strong>
+                            <span>{{ formatDateTime(invoice.saleDate) }} - {{ invoice.sellerName || invoice.createdBy || '-' }}</span>
+                          </div>
+                          <span class="badge" [class]="invoiceStatusClass(invoice)">{{ invoice.statusLabel || invoice.status }}</span>
+                          <strong>{{ formatCurrency(invoice.total) }}</strong>
+                          <button type="button" aria-label="Reenviar factura" [disabled]="sendingInvoiceId() === invoice.id || isInvoiceCancelled(invoice)" (click)="sendInvoice(invoice)">
+                            <mat-icon>outgoing_mail</mat-icon>
+                          </button>
+                        </article>
+                      } @empty {
+                        <div class="table-empty customer-invoices-empty"><mat-icon>receipt_long</mat-icon><strong>Sin facturas registradas</strong><span>Este cliente aun no tiene ventas asociadas.</span></div>
+                      }
+                    </div>
+
+                    @if (customerInvoicesPageInfo()) {
+                      <div class="pagination customer-invoices-pagination">
+                        <span>Mostrando {{ customerInvoices().length }} de {{ customerInvoicesPageInfo()?.totalElements }} facturas</span>
+                        <button type="button" [disabled]="customerInvoicesPageInfo()?.first" (click)="previousCustomerInvoicesPage()">Anterior</button>
+                        <button type="button" [disabled]="customerInvoicesPageInfo()?.last" (click)="nextCustomerInvoicesPage()">Siguiente</button>
+                      </div>
+                    }
+                  }
+                </section>
               }
             </div>
             <footer class="modal-footer"><button class="primary-btn" type="button" (click)="closeCustomerDetail()">Cerrar</button></footer>
@@ -237,14 +274,154 @@ import { PageTitle } from '../../shared/page-title';
       }
     </section>
   `,
+  styles: [`
+    .customer-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .customer-detail-grid div {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      grid-template-rows: auto auto;
+      column-gap: 10px;
+      row-gap: 2px;
+      align-items: center;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #dce5f0;
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .customer-detail-grid mat-icon {
+      grid-row: 1 / 3;
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: #eef2ff;
+      color: #3730a3;
+      font-size: 19px;
+    }
+
+    .customer-detail-grid span {
+      color: #667085;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .customer-detail-grid strong {
+      min-width: 0;
+      overflow: hidden;
+      color: #111827;
+      font-size: 14px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .customer-invoices {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #dce5f0;
+    }
+
+    .customer-invoice-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .customer-invoice-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto 38px;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid #dce5f0;
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .customer-invoice-card div {
+      min-width: 0;
+    }
+
+    .customer-invoice-card div span {
+      display: block;
+      margin-top: 3px;
+      overflow: hidden;
+      color: #667085;
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .customer-invoice-card > strong {
+      white-space: nowrap;
+    }
+
+    .customer-invoice-card button {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #dce5f0;
+      border-radius: 11px;
+      background: #ffffff;
+      color: #0f172a;
+      cursor: pointer;
+    }
+
+    .customer-invoice-card button:hover:not(:disabled) {
+      border-color: #99f6e4;
+      background: #f0fdfa;
+      color: #0f766e;
+    }
+
+    .customer-invoice-card button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .customer-invoices-pagination {
+      border: 1px solid #dce5f0;
+      border-radius: 14px;
+    }
+
+    .customer-invoices-empty {
+      border: 1px dashed #cbd5e1;
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    @media (max-width: 680px) {
+      .customer-detail-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .customer-invoice-card {
+        grid-template-columns: 1fr;
+      }
+    }
+  `],
 })
 export class CustomersPage implements OnInit {
   private readonly customersService = inject(CustomersService);
+  private readonly salesService = inject(SalesService);
   private readonly auth = inject(AuthService);
 
   readonly customers = signal<CustomerItem[]>([]);
   readonly search = signal('');
   readonly statusFilter = signal('all');
+  readonly statusOptions: DashboardSelectOption[] = [
+    { label: 'Todos los estados', value: 'all' },
+    { label: 'Activo', value: 'active' },
+    { label: 'Desactivado', value: 'inactive' },
+  ];
   readonly customerModalOpen = signal(false);
   readonly editingCustomerId = signal<number | null>(null);
   readonly creatingCustomer = signal(false);
@@ -261,6 +438,12 @@ export class CustomersPage implements OnInit {
   readonly selectedCustomer = signal<CustomerItem | null>(null);
   readonly detailModalOpen = signal(false);
   readonly detailLoading = signal(false);
+  readonly customerInvoices = signal<CustomerInvoice[]>([]);
+  readonly customerInvoicesLoading = signal(false);
+  readonly customerInvoicesError = signal('');
+  readonly customerInvoicesPageInfo = signal<Omit<CustomerInvoicesPageResponse, 'content'> | null>(null);
+  readonly customerInvoicesPage = signal(0);
+  readonly sendingInvoiceId = signal<number | null>(null);
   readonly page = signal(0);
   readonly size = signal(10);
   readonly totalElements = signal(0);
@@ -350,6 +533,17 @@ export class CustomersPage implements OnInit {
     const customerId = this.editingCustomerId();
     const formValue = this.customerForm.getRawValue();
     const request = this.cleanRequest(formValue);
+
+    if (!request.fullName || !request.documentNumber || !request.email || !request.phone || !request.address) {
+      this.createError.set('Completa los datos obligatorios del cliente.');
+      return;
+    }
+
+    if (!isValidEmail(request.email)) {
+      this.createError.set('Revisa el correo del cliente.');
+      return;
+    }
+
     const saveRequest = customerId
       ? this.customersService.update(customerId, { ...request, active: formValue.active } satisfies UpdateCustomerRequest)
       : this.customersService.create(request);
@@ -408,6 +602,11 @@ export class CustomersPage implements OnInit {
     this.detailLoading.set(true);
     this.detailError.set('');
     this.selectedCustomer.set(customer);
+    this.customerInvoices.set([]);
+    this.customerInvoicesPageInfo.set(null);
+    this.customerInvoicesPage.set(0);
+    this.customerInvoicesError.set('');
+    this.loadCustomerInvoices(customer.id, 0);
 
     this.customersService
       .getById(customer.id)
@@ -423,7 +622,69 @@ export class CustomersPage implements OnInit {
       this.detailModalOpen.set(false);
       this.selectedCustomer.set(null);
       this.detailError.set('');
+      this.customerInvoices.set([]);
+      this.customerInvoicesPageInfo.set(null);
+      this.customerInvoicesError.set('');
     }
+  }
+
+  loadCustomerInvoices(customerId = this.selectedCustomer()?.id ?? 0, page = this.customerInvoicesPage()): void {
+    if (!customerId) {
+      return;
+    }
+
+    this.customerInvoicesLoading.set(true);
+    this.customerInvoicesError.set('');
+
+    this.customersService
+      .getInvoicesPaginated(customerId, { page, size: 5, sortBy: 'saleDate', sortDirection: 'desc' })
+      .pipe(finalize(() => this.customerInvoicesLoading.set(false)))
+      .subscribe({
+        next: (response) => {
+          const { content, ...pageInfo } = response;
+          this.customerInvoices.set(content ?? []);
+          this.customerInvoicesPageInfo.set(pageInfo);
+          this.customerInvoicesPage.set(response.page ?? page);
+        },
+        error: (error: Error) => {
+          this.customerInvoices.set([]);
+          this.customerInvoicesPageInfo.set(null);
+          this.customerInvoicesError.set(error.message || 'No fue posible cargar el historial de facturas.');
+        },
+      });
+  }
+
+  previousCustomerInvoicesPage(): void {
+    if (!this.customerInvoicesPageInfo()?.first) {
+      this.loadCustomerInvoices(this.selectedCustomer()?.id ?? 0, this.customerInvoicesPage() - 1);
+    }
+  }
+
+  nextCustomerInvoicesPage(): void {
+    if (!this.customerInvoicesPageInfo()?.last) {
+      this.loadCustomerInvoices(this.selectedCustomer()?.id ?? 0, this.customerInvoicesPage() + 1);
+    }
+  }
+
+  sendInvoice(invoice: CustomerInvoice): void {
+    if (this.sendingInvoiceId() !== null || this.isInvoiceCancelled(invoice)) {
+      return;
+    }
+
+    this.customerInvoicesError.set('');
+    this.successMessage.set('');
+    this.sendingInvoiceId.set(invoice.id);
+
+    this.salesService
+      .sendInvoice(invoice.id)
+      .pipe(finalize(() => this.sendingInvoiceId.set(null)))
+      .subscribe({
+        next: (message) => {
+          this.feedbackType.set('success');
+          this.successMessage.set(message || 'Factura enviada correctamente');
+        },
+        error: (error: Error) => this.customerInvoicesError.set(error.message || 'No fue posible enviar la factura.'),
+      });
   }
 
   toggleCustomerStatus(customer: CustomerItem): void {
@@ -504,4 +765,28 @@ export class CustomersPage implements OnInit {
       address: request.address.trim(),
     };
   }
+
+  invoiceStatusClass(invoice: CustomerInvoice): string {
+    return this.isInvoiceCancelled(invoice) ? 'anulada' : 'activa';
+  }
+
+  isInvoiceCancelled(invoice: CustomerInvoice): boolean {
+    const status = String(invoice.status || '').toUpperCase();
+    return status === 'CANCELLED' || status === 'CANCELED';
+  }
+
+  formatCurrency(value: number): string {
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value || 0);
+  }
+
+  formatDateTime(value: string): string {
+    const date = new Date(value);
+    return !value || Number.isNaN(date.getTime())
+      ? '-'
+      : new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
+  }
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

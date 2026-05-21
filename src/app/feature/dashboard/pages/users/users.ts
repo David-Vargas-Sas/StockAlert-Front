@@ -389,6 +389,11 @@ export class UsersPage implements OnInit {
       return;
     }
 
+    if (!isValidEmail(cleanEmail)) {
+      this.editError.set('Ingresa un correo valido.');
+      return;
+    }
+
     if (roleIds.length === 0) {
       this.editError.set('Selecciona al menos un rol.');
       return;
@@ -416,6 +421,12 @@ export class UsersPage implements OnInit {
     if (!userId && (!cleanUsername || !cleanPassword)) {
       this.savingUser.set(false);
       this.editError.set('Completa usuario y contrasena.');
+      return;
+    }
+
+    if (!userId && cleanPassword.length < 6) {
+      this.savingUser.set(false);
+      this.editError.set('La contrasena debe tener minimo 6 caracteres.');
       return;
     }
 
@@ -462,4 +473,8 @@ export class UsersPage implements OnInit {
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
   }
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

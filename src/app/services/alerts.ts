@@ -11,6 +11,7 @@ export interface AlertRecord {
   productName: string;
   message: string;
   status: string;
+  statusLabel?: string;
   createdAt: string;
 }
 

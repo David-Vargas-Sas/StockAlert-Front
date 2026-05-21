@@ -113,6 +113,35 @@ export class UsersService {
     );
   }
 
+  getByCompany(companyId: number, query: UsersQuery = {}): Observable<UsersPageResponse> {
+    const token = this.auth.accessToken();
+
+    if (!token) {
+      return throwError(() => new Error('No hay token de acceso disponible.'));
+    }
+
+    const headers = new HttpHeaders({
+      Authorization: `Bearer ${token}`,
+    });
+
+    const params = new HttpParams()
+      .set('page', query.page ?? 0)
+      .set('size', query.size ?? 10)
+      .set('sortBy', query.sortBy ?? 'id')
+      .set('sortDirection', query.sortDirection ?? 'asc');
+
+    return this.http.get<ApiResponse<UsersPageResponse>>(`http://localhost:8080/api/companies/${companyId}/users/paginated`, { headers, params }).pipe(
+      map((response) => {
+        if (!response.success) {
+          throw new Error(response.message || 'No fue posible cargar los usuarios de la empresa.');
+        }
+
+        return response.data;
+      }),
+      catchError(this.apiError.handle('No fue posible cargar los usuarios de la empresa.')),
+    );
+  }
+
   create(request: CreateUserRequest): Observable<AppUser> {
     const token = this.auth.accessToken();
 

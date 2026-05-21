@@ -19,6 +19,7 @@ export interface PurchaseRecord {
   supplierName: string;
   purchaseDate: string;
   status: string;
+  statusLabel?: string;
   total: number;
   cancelledAt?: string;
   cancelledBy?: string;

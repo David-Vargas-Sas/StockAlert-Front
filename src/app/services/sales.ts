@@ -24,6 +24,7 @@ export interface SaleRecord {
   total?: number;
   totalAmount?: number;
   status?: string;
+  statusLabel?: string;
   cancelledAt?: string;
   cancelledBy?: string;
   createdAt?: string;
@@ -152,6 +153,44 @@ export class SalesService {
         return response.data;
       }),
       catchError(this.apiError.handle('No fue posible registrar la venta.')),
+    );
+  }
+
+  cancel(saleId: number): Observable<SaleRecord> {
+    const headers = this.authHeaders();
+
+    if (!headers) {
+      return throwError(() => new Error('No hay token de acceso disponible.'));
+    }
+
+    return this.http.patch<ApiResponse<SaleRecord>>(`${SALES_URL}/${saleId}/cancel`, null, { headers }).pipe(
+      map((response) => {
+        if (!response.success) {
+          throw new Error(response.message || 'No fue posible anular la venta.');
+        }
+
+        return response.data;
+      }),
+      catchError(this.apiError.handle('No fue posible anular la venta.')),
+    );
+  }
+
+  sendInvoice(saleId: number): Observable<string> {
+    const headers = this.authHeaders();
+
+    if (!headers) {
+      return throwError(() => new Error('No hay token de acceso disponible.'));
+    }
+
+    return this.http.post<ApiResponse<string>>(`${SALES_URL}/${saleId}/send-invoice`, null, { headers }).pipe(
+      map((response) => {
+        if (!response.success) {
+          throw new Error(response.message || 'No fue posible enviar la factura.');
+        }
+
+        return response.message || response.data;
+      }),
+      catchError(this.apiError.handle('No fue posible enviar la factura.')),
     );
   }
 

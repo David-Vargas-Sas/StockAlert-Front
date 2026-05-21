@@ -2,11 +2,13 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { finalize } from 'rxjs';
 import { CreateProductRequest, ProductItem, ProductsPageResponse, ProductsService, UpdateProductRequest } from '../../../../services/products';
+import { DashboardSelect, DashboardSelectOption } from '../../shared/dashboard-select';
+import { FeedbackModal, FeedbackType } from '../../shared/feedback-modal';
 import { PageTitle } from '../../shared/page-title';
 
 @Component({
   selector: 'app-products-page',
-  imports: [MatIconModule, PageTitle],
+  imports: [MatIconModule, PageTitle, DashboardSelect, FeedbackModal],
   template: `
     <section class="page">
       <app-page-title title="Productos" subtitle="Gestiona inventario, precios, stock minimo y estado." />
@@ -16,16 +18,8 @@ import { PageTitle } from '../../shared/page-title';
           <mat-icon>search</mat-icon>
           <input placeholder="Buscar producto" (input)="search.set($any($event.target).value)" />
         </label>
-        <select (change)="stateFilter.set($any($event.target).value)">
-          <option value="">Todos los estados</option>
-          <option value="Activo">Activo</option>
-          <option value="Desactivado">Desactivado</option>
-        </select>
-        <select (change)="onStockFilterChange($any($event.target).value)">
-          <option value="">Todos los stocks</option>
-          <option value="Bajo stock">Bajo stock</option>
-          <option value="Sin stock">Sin stock</option>
-        </select>
+        <app-dashboard-select [options]="stateOptions" [value]="stateFilter()" (valueChange)="stateFilter.set($event)" />
+        <app-dashboard-select [options]="stockOptions" [value]="stockFilter()" (valueChange)="onStockFilterChange($event)" />
         <button class="primary-btn" type="button" (click)="openCreateProduct()">
           <mat-icon>add</mat-icon>
           Crear producto
@@ -57,6 +51,13 @@ import { PageTitle } from '../../shared/page-title';
           <span>{{ statusError() }}</span>
         </div>
       }
+
+      <app-feedback-modal
+        [title]="successMessage()"
+        [message]="successDetail()"
+        [type]="feedbackType()"
+        (dismiss)="successMessage.set('')"
+      />
 
       <div class="table-card">
         <table>
@@ -290,6 +291,16 @@ export class ProductsPage implements OnInit {
   readonly search = signal('');
   readonly stateFilter = signal('');
   readonly stockFilter = signal('');
+  readonly stateOptions: DashboardSelectOption[] = [
+    { label: 'Todos los estados', value: '' },
+    { label: 'Activo', value: 'Activo' },
+    { label: 'Desactivado', value: 'Desactivado' },
+  ];
+  readonly stockOptions: DashboardSelectOption[] = [
+    { label: 'Todos los stocks', value: '' },
+    { label: 'Bajo stock', value: 'Bajo stock' },
+    { label: 'Sin stock', value: 'Sin stock' },
+  ];
   readonly createProductOpen = signal(false);
   readonly creatingProduct = signal(false);
   readonly createError = signal('');
@@ -308,6 +319,9 @@ export class ProductsPage implements OnInit {
   readonly deletingProduct = signal(false);
   readonly deleteError = signal('');
   readonly productToDelete = signal<ProductItem | null>(null);
+  readonly successMessage = signal('');
+  readonly successDetail = signal('');
+  readonly feedbackType = signal<FeedbackType>('success');
 
   ngOnInit(): void {
     this.loadProducts();
@@ -456,6 +470,7 @@ export class ProductsPage implements OnInit {
 
   toggleProductStatus(product: ProductItem): void {
     this.statusError.set('');
+    this.successMessage.set('');
 
     if (product.id < 1) {
       this.statusError.set('Este producto aun no tiene un ID valido del backend.');
@@ -474,6 +489,10 @@ export class ProductsPage implements OnInit {
         if (this.selectedProduct()?.id === nextProduct.id) {
           this.selectedProduct.set(nextProduct);
         }
+
+        this.feedbackType.set(nextProduct.active ? 'activate' : 'deactivate');
+        this.successMessage.set(nextProduct.active ? 'Producto activado correctamente' : 'Producto desactivado correctamente');
+        this.successDetail.set(nextProduct.active ? 'El producto vuelve a estar disponible para ventas y movimientos.' : 'El producto quedo fuera de uso para nuevas operaciones.');
       },
       error: (error: Error) => this.statusError.set(error.message || 'No fue posible cambiar el estado del producto.'),
     });
@@ -481,6 +500,7 @@ export class ProductsPage implements OnInit {
 
   openDeleteProduct(product: ProductItem): void {
     this.deleteError.set('');
+    this.successMessage.set('');
     this.productToDelete.set(product);
     this.deleteProductOpen.set(true);
   }
@@ -517,6 +537,10 @@ export class ProductsPage implements OnInit {
           if (this.selectedProduct()?.id === product.id) {
             this.closeProductDetail();
           }
+
+          this.feedbackType.set('delete');
+          this.successMessage.set('Producto eliminado correctamente');
+          this.successDetail.set('El producto ya no se muestra en el inventario.');
         },
         error: (error: Error) => this.deleteError.set(error.message || 'No fue posible eliminar el producto.'),
       });
@@ -531,8 +555,18 @@ export class ProductsPage implements OnInit {
       minimumStock: Number(this.productFormMinimumStock()),
     };
 
-    if (!request.name || !request.description || !Number.isFinite(request.price) || request.price < 0.01) {
-      this.createError.set('Completa nombre, descripcion y un precio valido.');
+    if (!request.name || request.name.length < 2) {
+      this.createError.set('Ingresa un nombre de producto valido.');
+      return;
+    }
+
+    if (!request.description || request.description.length < 3) {
+      this.createError.set('Ingresa una descripcion corta del producto.');
+      return;
+    }
+
+    if (!Number.isFinite(request.price) || request.price < 0.01) {
+      this.createError.set('Ingresa un precio mayor a cero.');
       return;
     }
 
@@ -543,6 +577,7 @@ export class ProductsPage implements OnInit {
 
     this.creatingProduct.set(true);
     this.createError.set('');
+    this.successMessage.set('');
 
     const editingProductId = this.editingProductId();
     const saveRequest = editingProductId
@@ -570,6 +605,10 @@ export class ProductsPage implements OnInit {
           if (this.selectedProduct()?.id === product.id) {
             this.selectedProduct.set(product);
           }
+
+          this.feedbackType.set(editingProductId ? 'edit' : 'create');
+          this.successMessage.set(editingProductId ? 'Producto actualizado correctamente' : 'Producto creado correctamente');
+          this.successDetail.set(editingProductId ? 'Los datos del producto quedaron actualizados.' : 'El producto quedo disponible en el inventario.');
         },
         error: (error: Error) => this.createError.set(error.message || 'No fue posible guardar el producto.'),
       });

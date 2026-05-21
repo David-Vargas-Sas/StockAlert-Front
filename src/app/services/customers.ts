@@ -46,6 +46,47 @@ export interface CustomersQuery {
   sortDirection?: string;
 }
 
+export interface CustomerInvoiceDetail {
+  productId: number;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface CustomerInvoice {
+  id: number;
+  companyId: number;
+  customerId: number;
+  customerName: string;
+  saleNumber: string;
+  saleDate: string;
+  createdBy?: string;
+  sellerName?: string;
+  status: string;
+  statusLabel?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  total: number;
+  details: CustomerInvoiceDetail[];
+}
+
+export interface CustomerInvoicesPageResponse {
+  content: CustomerInvoice[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+  empty: boolean;
+}
+
+export interface CustomerInvoicesQuery extends CustomersQuery {
+  start?: string;
+  end?: string;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -105,6 +146,47 @@ export class CustomersService {
     return this.http.get<ApiResponse<CustomersPageResponse>>(CUSTOMERS_PAGINATED_URL, { headers, params }).pipe(
       map((response) => this.unwrap(response, 'No fue posible cargar los clientes.')),
       catchError(this.apiError.handle('No fue posible cargar los clientes.')),
+    );
+  }
+
+  getInvoices(customerId: number): Observable<CustomerInvoice[]> {
+    const headers = this.authHeaders();
+
+    if (!headers) {
+      return throwError(() => new Error('No hay token de acceso disponible.'));
+    }
+
+    return this.http.get<ApiResponse<CustomerInvoice[]>>(`${CUSTOMERS_URL}/${customerId}/invoices`, { headers }).pipe(
+      map((response) => this.unwrap(response, 'No fue posible cargar las facturas del cliente.')),
+      catchError(this.apiError.handle('No fue posible cargar las facturas del cliente.')),
+    );
+  }
+
+  getInvoicesPaginated(customerId: number, query: CustomerInvoicesQuery = {}): Observable<CustomerInvoicesPageResponse> {
+    const headers = this.authHeaders();
+
+    if (!headers) {
+      return throwError(() => new Error('No hay token de acceso disponible.'));
+    }
+
+    const params: Record<string, string> = {
+      page: String(query.page ?? 0),
+      size: String(query.size ?? 10),
+      sortBy: query.sortBy ?? 'saleDate',
+      sortDirection: query.sortDirection ?? 'desc',
+    };
+
+    if (query.start) {
+      params['start'] = query.start;
+    }
+
+    if (query.end) {
+      params['end'] = query.end;
+    }
+
+    return this.http.get<ApiResponse<CustomerInvoicesPageResponse>>(`${CUSTOMERS_URL}/${customerId}/invoices/paginated`, { headers, params }).pipe(
+      map((response) => this.unwrap(response, 'No fue posible cargar el historial de facturas.')),
+      catchError(this.apiError.handle('No fue posible cargar el historial de facturas.')),
     );
   }
 

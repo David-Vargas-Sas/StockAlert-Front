@@ -72,7 +72,7 @@ import { DashboardData } from '../../services/dashboard-data';
           } @else {
             <div class="mini-list">
               @for (sale of latestSales(); track sale.id) {
-                <div><span>{{ sale.saleNumber || ('V-' + sale.id) }} - {{ sale.customerName || 'Cliente sin nombre' }}</span><strong>{{ formatCurrency(sale.total) }}</strong></div>
+                <div><span>{{ sale.saleNumber || ('V-' + sale.id) }} - {{ sale.customerName || 'Cliente sin nombre' }} - {{ sale.statusLabel || sale.status }}</span><strong>{{ formatCurrency(sale.total) }}</strong></div>
               } @empty {
                 <div><span>Sin ventas recientes</span><strong>$0</strong></div>
               }

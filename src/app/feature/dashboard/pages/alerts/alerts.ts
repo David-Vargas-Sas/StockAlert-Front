@@ -243,7 +243,7 @@ export class AlertsPage implements OnInit {
     const filter = this.statusFilter();
 
     return this.alerts().filter((alert) => {
-      const matchesTerm = [alert.productName, alert.message, alert.status].some((value) => (value || '').toLowerCase().includes(term));
+      const matchesTerm = [alert.productName, alert.message, alert.status, alert.statusLabel].some((value) => (value || '').toLowerCase().includes(term));
       const resolved = this.isResolved(alert);
       const matchesStatus = filter === 'all' || (filter === 'resolved' && resolved) || (filter === 'active' && !resolved);
 
@@ -264,7 +264,7 @@ export class AlertsPage implements OnInit {
     this.loadError.set('');
 
     this.alertsService
-      .getPaginated({ page, size: this.size(), sortBy: 'id', sortDirection: 'asc' })
+      .getPaginated({ page, size: this.size(), sortBy: 'id', sortDirection: 'desc' })
       .pipe(finalize(() => this.loadingAlerts.set(false)))
       .subscribe({
         next: (response) => {
@@ -317,6 +317,10 @@ export class AlertsPage implements OnInit {
   }
 
   alertStatusLabel(alert: AlertRecord): string {
+    if (alert.statusLabel) {
+      return alert.statusLabel;
+    }
+
     return this.isResolved(alert) ? 'Resuelta' : 'Activa';
   }
 

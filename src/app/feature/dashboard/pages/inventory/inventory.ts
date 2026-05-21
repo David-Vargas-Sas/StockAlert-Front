@@ -4,29 +4,21 @@ import { finalize } from 'rxjs';
 import { AuthService } from '../../../../services/auth';
 import { AdjustmentOutRequest, InventoryAdjustmentType, InventoryMovement, InventoryMovementsService } from '../../../../services/inventory-movements';
 import { ProductItem, ProductsService } from '../../../../services/products';
+import { DashboardSelect, DashboardSelectOption } from '../../shared/dashboard-select';
 import { FeedbackModal } from '../../shared/feedback-modal';
 import { PageTitle } from '../../shared/page-title';
 
 @Component({
   selector: 'app-inventory-page',
-  imports: [MatIconModule, PageTitle, FeedbackModal],
+  imports: [MatIconModule, PageTitle, FeedbackModal, DashboardSelect],
   template: `
     <section class="page inventory-page">
       <app-page-title title="Inventario" subtitle="Consulta stock, movimientos y ajustes manuales autorizados." />
 
       <div class="toolbar inventory-toolbar">
         <label><mat-icon>search</mat-icon><input placeholder="Buscar producto o movimiento" [value]="search()" (input)="search.set(inputValue($event))" /></label>
-        <select [value]="stockFilter()" (change)="stockFilter.set(inputValue($event))">
-          <option value="all">Todos los productos</option>
-          <option value="low">Bajo stock</option>
-          <option value="empty">Sin stock</option>
-        </select>
-        <select [value]="movementProductId()" (change)="changeMovementProduct(inputValue($event))">
-          <option value="0">Todos los movimientos</option>
-          @for (product of products(); track product.id) {
-            <option [value]="product.id">{{ product.name }}</option>
-          }
-        </select>
+        <app-dashboard-select [options]="stockOptions" [value]="stockFilter()" (valueChange)="stockFilter.set($event)" />
+        <app-dashboard-select [options]="movementProductOptions" [value]="movementProductId()" (valueChange)="changeMovementProduct($event)" />
         <button class="secondary-btn" type="button" [disabled]="!canAdjustInventory()" (click)="openAdjustment('in')"><mat-icon>add_shopping_cart</mat-icon>Ajuste entrada</button>
         <button class="primary-btn" type="button" [disabled]="!canAdjustInventory()" (click)="openAdjustment('out')"><mat-icon>remove_shopping_cart</mat-icon>Ajuste salida</button>
       </div>
@@ -166,7 +158,7 @@ import { PageTitle } from '../../shared/page-title';
         max-width: 360px;
       }
 
-      .inventory-toolbar select {
+      .inventory-toolbar app-dashboard-select {
         flex: 0 1 220px;
       }
 
@@ -204,7 +196,7 @@ import { PageTitle } from '../../shared/page-title';
         }
 
         .inventory-toolbar label,
-        .inventory-toolbar select,
+        .inventory-toolbar app-dashboard-select,
         .inventory-toolbar .secondary-btn,
         .inventory-toolbar .primary-btn {
           flex: 1 1 100%;
@@ -224,6 +216,11 @@ export class InventoryPage implements OnInit {
   readonly movements = signal<InventoryMovement[]>([]);
   readonly search = signal('');
   readonly stockFilter = signal('all');
+  readonly stockOptions: DashboardSelectOption[] = [
+    { label: 'Todos los productos', value: 'all' },
+    { label: 'Bajo stock', value: 'low' },
+    { label: 'Sin stock', value: 'empty' },
+  ];
   readonly loadingProducts = signal(false);
   readonly loadingMovements = signal(false);
   readonly loadError = signal('');
@@ -278,6 +275,13 @@ export class InventoryPage implements OnInit {
 
   get emptyStockCount(): number {
     return this.products().filter((product) => product.stock <= 0).length;
+  }
+
+  get movementProductOptions(): DashboardSelectOption[] {
+    return [
+      { label: 'Todos los movimientos', value: 0 },
+      ...this.products().map((product) => ({ label: product.name, value: product.id })),
+    ];
   }
 
   get canSaveAdjustment(): boolean {
@@ -431,7 +435,7 @@ export class InventoryPage implements OnInit {
 
   lastMovementLabel(productId: number): string {
     const movement = this.movements().find((item) => item.productId === productId);
-    return movement ? `${movement.type} x ${movement.quantity}` : '-';
+    return movement ? `${this.movementTypeLabel(movement)} x ${movement.quantity}` : '-';
   }
 
   productById(productId: number): ProductItem | null {
@@ -439,6 +443,10 @@ export class InventoryPage implements OnInit {
   }
 
   movementTypeLabel(movement: InventoryMovement): string {
+    if (movement.typeLabel) {
+      return movement.typeLabel;
+    }
+
     const type = String(movement.type || '').toUpperCase();
 
     if (type === 'ADJUSTMENT_IN') {
@@ -461,8 +469,8 @@ export class InventoryPage implements OnInit {
   }
 
   movementTypeClass(movement: InventoryMovement): string {
-    const label = this.movementTypeLabel(movement);
-    return label === 'Ajuste salida' || label === 'Venta' ? 'inactiva' : 'activa';
+    const type = String(movement.type || '').toUpperCase();
+    return type === 'ADJUSTMENT_OUT' || type === 'SALE' ? 'inactiva' : 'activa';
   }
 
   formatDate(value: string): string {

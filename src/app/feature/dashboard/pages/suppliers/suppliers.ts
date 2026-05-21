@@ -4,12 +4,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../../../services/auth';
 import { CreateSupplierRequest, SupplierItem, SuppliersService, UpdateSupplierRequest } from '../../../../services/suppliers';
+import { DashboardSelect, DashboardSelectOption } from '../../shared/dashboard-select';
 import { FeedbackModal, FeedbackType } from '../../shared/feedback-modal';
 import { PageTitle } from '../../shared/page-title';
 
 @Component({
   selector: 'app-suppliers-page',
-  imports: [MatIconModule, PageTitle, ReactiveFormsModule, FeedbackModal],
+  imports: [MatIconModule, PageTitle, ReactiveFormsModule, FeedbackModal, DashboardSelect],
   template: `
     <section class="page">
       <app-page-title title="Proveedores" subtitle="Gestiona aliados de abastecimiento y datos de contacto." />
@@ -19,11 +20,7 @@ import { PageTitle } from '../../shared/page-title';
           <mat-icon>search</mat-icon>
           <input placeholder="Buscar proveedor" [value]="search()" (input)="search.set(inputValue($event))" />
         </label>
-        <select [value]="statusFilter()" (change)="statusFilter.set(inputValue($event))">
-          <option value="all">Todos los estados</option>
-          <option value="active">Activo</option>
-          <option value="inactive">Desactivado</option>
-        </select>
+        <app-dashboard-select [options]="statusOptions" [value]="statusFilter()" (valueChange)="statusFilter.set($event)" />
         <button class="primary-btn" type="button" [disabled]="!canCreateSupplier()" (click)="openCreateSupplier()">
           <mat-icon>local_shipping</mat-icon>
           Crear proveedor
@@ -298,6 +295,11 @@ export class SuppliersPage implements OnInit {
 
   readonly search = signal('');
   readonly statusFilter = signal('all');
+  readonly statusOptions: DashboardSelectOption[] = [
+    { label: 'Todos los estados', value: 'all' },
+    { label: 'Activo', value: 'active' },
+    { label: 'Desactivado', value: 'inactive' },
+  ];
   readonly supplierModalOpen = signal(false);
   readonly editingSupplierId = signal<number | null>(null);
   readonly creatingSupplier = signal(false);
@@ -409,6 +411,16 @@ export class SuppliersPage implements OnInit {
     const supplierId = this.editingSupplierId();
     const formValue = this.supplierForm.getRawValue();
     const request = this.cleanRequest(formValue);
+
+    if (!request.name || !request.taxId || !request.contactName || !request.email || !request.phone || !request.address) {
+      this.createError.set('Completa los datos obligatorios del proveedor.');
+      return;
+    }
+
+    if (!isValidEmail(request.email)) {
+      this.createError.set('Revisa el correo del proveedor.');
+      return;
+    }
 
     this.creatingSupplier.set(true);
     const saveRequest = supplierId
@@ -585,4 +597,8 @@ export class SuppliersPage implements OnInit {
       address: request.address.trim(),
     };
   }
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

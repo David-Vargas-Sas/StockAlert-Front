@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
 export type FeedbackType = 'success' | 'error' | 'create' | 'edit' | 'delete' | 'activate' | 'deactivate';
@@ -8,7 +8,7 @@ export type FeedbackType = 'success' | 'error' | 'create' | 'edit' | 'delete' | 
   imports: [MatIconModule],
   template: `
     @if (title) {
-      <aside class="feedback-modal {{ type }}" role="status" aria-live="polite">
+      <aside class="feedback-modal {{ type }}" [class.leaving]="leaving" role="status" aria-live="polite">
         <span class="feedback-icon">
           <mat-icon>{{ icon }}</mat-icon>
         </span>
@@ -18,7 +18,7 @@ export type FeedbackType = 'success' | 'error' | 'create' | 'edit' | 'delete' | 
             <p>{{ message }}</p>
           }
         </div>
-        <button type="button" aria-label="Cerrar notificacion" (click)="dismiss.emit()">
+        <button type="button" aria-label="Cerrar notificacion" (click)="close()">
           <mat-icon>close</mat-icon>
         </button>
       </aside>
@@ -44,6 +44,10 @@ export type FeedbackType = 'success' | 'error' | 'create' | 'edit' | 'delete' | 
         color: #166534;
         box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
         animation: feedback-enter 160ms ease both;
+      }
+
+      .feedback-modal.leaving {
+        animation: feedback-leave 220ms ease both;
       }
 
       .feedback-modal.error {
@@ -155,14 +159,53 @@ export type FeedbackType = 'success' | 'error' | 'create' | 'edit' | 'delete' | 
           transform: translateY(0) scale(1);
         }
       }
+
+      @keyframes feedback-leave {
+        from {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(-8px) scale(0.98);
+        }
+      }
     `,
   ],
 })
-export class FeedbackModal {
+export class FeedbackModal implements OnChanges, OnDestroy {
   @Input() title = '';
   @Input() message = '';
   @Input() type: FeedbackType = 'success';
   @Output() dismiss = new EventEmitter<void>();
+  leaving = false;
+  private autoCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  private leaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['title'] && this.title) {
+      this.leaving = false;
+      this.clearTimers();
+      this.autoCloseTimer = setTimeout(() => this.close(), 2000);
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.clearTimers();
+  }
+
+  close(): void {
+    if (!this.title || this.leaving) {
+      return;
+    }
+
+    this.leaving = true;
+    this.clearAutoCloseTimer();
+    this.leaveTimer = setTimeout(() => {
+      this.leaving = false;
+      this.dismiss.emit();
+    }, 220);
+  }
 
   get icon(): string {
     const icons: Record<FeedbackType, string> = {
@@ -176,5 +219,21 @@ export class FeedbackModal {
     };
 
     return icons[this.type];
+  }
+
+  private clearTimers(): void {
+    this.clearAutoCloseTimer();
+
+    if (this.leaveTimer) {
+      clearTimeout(this.leaveTimer);
+      this.leaveTimer = null;
+    }
+  }
+
+  private clearAutoCloseTimer(): void {
+    if (this.autoCloseTimer) {
+      clearTimeout(this.autoCloseTimer);
+      this.autoCloseTimer = null;
+    }
   }
 }

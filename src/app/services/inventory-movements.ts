@@ -10,6 +10,7 @@ export interface InventoryMovement {
   productId: number;
   productName: string;
   type: string;
+  typeLabel?: string;
   quantity: number;
   previousStock: number;
   newStock: number;

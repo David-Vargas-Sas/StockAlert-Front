@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { finalize } from 'rxjs';
 import { CompaniesPageResponse, CompaniesService, Company } from '../../../../services/companies';
+import { AppUser, UsersPageResponse, UsersService } from '../../../../services/users';
 import { FeedbackModal, FeedbackType } from '../../shared/feedback-modal';
 import { PageTitle } from '../../shared/page-title';
 
@@ -74,7 +75,7 @@ import { PageTitle } from '../../shared/page-title';
                 </td>
                 <td class="action-cell">
                   <div class="actions">
-                    <button type="button" aria-label="Ver usuarios"><mat-icon>groups</mat-icon></button>
+                    <button type="button" aria-label="Ver usuarios" (click)="openCompanyUsers(company)"><mat-icon>groups</mat-icon></button>
                     <button class="action-label edit-action" type="button" aria-label="Editar empresa" (click)="openEditCompany(company)">
                       <mat-icon>edit</mat-icon>
                       Editar
@@ -289,11 +290,226 @@ import { PageTitle } from '../../shared/page-title';
           </section>
         </div>
       }
+
+      @if (companyUsersOpen()) {
+        <div class="modal-backdrop" (click)="closeCompanyUsers()">
+          <section class="modal company-create-modal" (click)="$event.stopPropagation()">
+            <header class="modal-header">
+              <div class="modal-title">
+                <span class="modal-icon admin"><mat-icon>groups</mat-icon></span>
+                <div>
+                  <h2>Usuarios de empresa</h2>
+                  <p>{{ selectedUsersCompany()?.name }}</p>
+                </div>
+              </div>
+              <button class="modal-close" type="button" (click)="closeCompanyUsers()" aria-label="Cerrar modal"><mat-icon>close</mat-icon></button>
+            </header>
+
+            <div class="modal-body">
+              @if (companyUsersLoading()) {
+                <div class="audit-status-card">
+                  <span class="loading-dot"></span>
+                  <div><h3>Cargando usuarios</h3><p>Consultando usuarios asociados a la empresa.</p></div>
+                </div>
+              } @else if (companyUsersError()) {
+                <div class="inline-error">
+                  <mat-icon>error</mat-icon>
+                  <span>{{ companyUsersError() }}</span>
+                </div>
+              } @else {
+                <div class="company-users-panel">
+                  <div class="company-users-list">
+                    @for (user of companyUsers(); track user.id) {
+                      <article class="company-user-card">
+                        <span class="user-avatar">{{ userInitials(user) }}</span>
+                        <div class="company-user-main">
+                          <div class="company-user-heading">
+                            <div>
+                              <strong>{{ user.fullName }}</strong>
+                              <span>{{ user.email }}</span>
+                            </div>
+                            <span class="badge" [class]="user.active ? 'activa' : 'inactiva'">{{ user.active ? 'Activo' : 'Inactivo' }}</span>
+                          </div>
+                          <div class="company-user-meta">
+                            <span><mat-icon>alternate_email</mat-icon>{{ user.username }}</span>
+                            <span><mat-icon>business</mat-icon>{{ user.companyName || selectedUsersCompany()?.name }}</span>
+                          </div>
+                          <div class="company-user-roles">
+                            @for (role of user.roles; track role.id) {
+                              <span>{{ roleLabel(role.name) }}</span>
+                            } @empty {
+                              <span>Sin rol</span>
+                            }
+                          </div>
+                        </div>
+                      </article>
+                    } @empty {
+                      <div class="table-empty company-users-empty">
+                        <mat-icon>group_off</mat-icon>
+                        <strong>Sin usuarios para mostrar</strong>
+                        <span>Esta empresa aun no tiene usuarios registrados.</span>
+                      </div>
+                    }
+                  </div>
+                  @if (companyUsersPageInfo()) {
+                    <div class="pagination">
+                      <span>Mostrando {{ companyUsers().length }} de {{ companyUsersPageInfo()?.totalElements }} usuarios</span>
+                      <button type="button" [disabled]="companyUsersPageInfo()?.first" (click)="previousCompanyUsersPage()">Anterior</button>
+                      <button type="button" [disabled]="companyUsersPageInfo()?.last" (click)="nextCompanyUsersPage()">Siguiente</button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+
+            <footer class="modal-footer">
+              <button class="primary-btn" type="button" (click)="closeCompanyUsers()">Cerrar</button>
+            </footer>
+          </section>
+        </div>
+      }
     </section>
   `,
+  styles: [
+    `
+      .company-users-panel {
+        display: grid;
+        gap: 14px;
+      }
+
+      .company-users-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .company-user-card {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr);
+        gap: 14px;
+        padding: 14px;
+        border: 1px solid #dce5f0;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+      }
+
+      .company-user-card .user-avatar {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        border-radius: 14px;
+        background: #4338ca;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .company-user-main {
+        min-width: 0;
+        display: grid;
+        gap: 10px;
+      }
+
+      .company-user-heading {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .company-user-heading div {
+        min-width: 0;
+      }
+
+      .company-user-heading strong,
+      .company-user-heading span {
+        display: block;
+      }
+
+      .company-user-heading strong {
+        color: #111827;
+        font-size: 15px;
+      }
+
+      .company-user-heading div span {
+        margin-top: 3px;
+        overflow: hidden;
+        color: #667085;
+        font-size: 13px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .company-user-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .company-user-meta span {
+        min-height: 28px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #475569;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .company-user-meta mat-icon {
+        width: 16px;
+        height: 16px;
+        font-size: 16px;
+      }
+
+      .company-user-roles {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+
+      .company-user-roles span {
+        min-height: 26px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: #eef2ff;
+        color: #3730a3;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .company-users-panel .pagination {
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+      }
+
+      .company-users-empty {
+        border: 1px dashed #cbd5e1;
+        border-radius: 16px;
+        background: #ffffff;
+      }
+
+      @media (max-width: 680px) {
+        .company-user-card {
+          grid-template-columns: 1fr;
+        }
+
+        .company-user-heading {
+          flex-direction: column;
+        }
+      }
+    `,
+  ],
 })
 export class CompaniesPage implements OnInit {
   private readonly companiesService = inject(CompaniesService);
+  private readonly usersService = inject(UsersService);
 
   readonly companies = signal<Company[]>([]);
   readonly loading = signal(false);
@@ -327,6 +543,13 @@ export class CompaniesPage implements OnInit {
   readonly successMessage = signal('');
   readonly successDetail = signal('');
   readonly feedbackType = signal<FeedbackType>('success');
+  readonly companyUsersOpen = signal(false);
+  readonly companyUsersLoading = signal(false);
+  readonly companyUsersError = signal('');
+  readonly selectedUsersCompany = signal<Company | null>(null);
+  readonly companyUsers = signal<AppUser[]>([]);
+  readonly companyUsersPageInfo = signal<Omit<UsersPageResponse, 'content'> | null>(null);
+  readonly companyUsersPage = signal(0);
   readonly pageSize = 10;
 
   ngOnInit(): void {
@@ -423,6 +646,67 @@ export class CompaniesPage implements OnInit {
     }
   }
 
+  openCompanyUsers(company: Company): void {
+    this.selectedUsersCompany.set(company);
+    this.companyUsers.set([]);
+    this.companyUsersPageInfo.set(null);
+    this.companyUsersPage.set(0);
+    this.companyUsersError.set('');
+    this.companyUsersOpen.set(true);
+    this.loadCompanyUsers(0);
+  }
+
+  closeCompanyUsers(): void {
+    if (!this.companyUsersLoading()) {
+      this.companyUsersOpen.set(false);
+      this.selectedUsersCompany.set(null);
+      this.companyUsers.set([]);
+      this.companyUsersPageInfo.set(null);
+      this.companyUsersError.set('');
+    }
+  }
+
+  loadCompanyUsers(page = this.companyUsersPage()): void {
+    const company = this.selectedUsersCompany();
+
+    if (!company) {
+      this.companyUsersError.set('Selecciona una empresa para ver usuarios.');
+      return;
+    }
+
+    this.companyUsersLoading.set(true);
+    this.companyUsersError.set('');
+
+    this.usersService
+      .getByCompany(company.id, { page, size: this.pageSize, sortBy: 'id', sortDirection: 'asc' })
+      .pipe(finalize(() => this.companyUsersLoading.set(false)))
+      .subscribe({
+        next: (response) => {
+          const { content, ...pageInfo } = response;
+          this.companyUsers.set(content ?? []);
+          this.companyUsersPageInfo.set(pageInfo);
+          this.companyUsersPage.set(response.page ?? page);
+        },
+        error: (error: Error) => {
+          this.companyUsers.set([]);
+          this.companyUsersPageInfo.set(null);
+          this.companyUsersError.set(error.message || 'No fue posible cargar los usuarios de la empresa.');
+        },
+      });
+  }
+
+  previousCompanyUsersPage(): void {
+    if (!this.companyUsersPageInfo()?.first) {
+      this.loadCompanyUsers(this.companyUsersPage() - 1);
+    }
+  }
+
+  nextCompanyUsersPage(): void {
+    if (!this.companyUsersPageInfo()?.last) {
+      this.loadCompanyUsers(this.companyUsersPage() + 1);
+    }
+  }
+
   saveCompanyAdmin(form: { username: string; password: string; fullName: string; email: string }): void {
     const company = this.selectedAdminCompany();
     const request = {
@@ -439,6 +723,16 @@ export class CompaniesPage implements OnInit {
 
     if (!request.username || !request.password || !request.fullName || !request.email) {
       this.adminError.set('Completa usuario, contrasena, nombre y correo.');
+      return;
+    }
+
+    if (!isValidEmail(request.email)) {
+      this.adminError.set('Ingresa un correo valido para el administrador.');
+      return;
+    }
+
+    if (request.password.length < 6) {
+      this.adminError.set('La contrasena debe tener minimo 6 caracteres.');
       return;
     }
 
@@ -495,6 +789,16 @@ export class CompaniesPage implements OnInit {
 
     if (!request.name || !request.taxId || !request.email) {
       this.createError.set('Completa razon social, NIT / Tax ID y correo.');
+      return;
+    }
+
+    if (!isValidEmail(request.email)) {
+      this.createError.set('Ingresa un correo valido para la empresa.');
+      return;
+    }
+
+    if (request.website && !/^https?:\/\/.+\..+/.test(request.website)) {
+      this.createError.set('Ingresa un sitio web valido, por ejemplo https://empresa.com.');
       return;
     }
 
@@ -571,6 +875,28 @@ export class CompaniesPage implements OnInit {
     return [company.city, company.department].filter(Boolean).join(', ') || 'Sin ciudad';
   }
 
+  userRoles(user: AppUser): string {
+    return user.roles?.length ? user.roles.map((role) => this.roleLabel(role.name)).join(', ') : '-';
+  }
+
+  userInitials(user: AppUser): string {
+    const source = user.fullName || user.username || user.email || 'U';
+    return source
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('');
+  }
+
+  roleLabel(role: string): string {
+    return role
+      .toLowerCase()
+      .split('_')
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
   formatDate(value: string): string {
     const date = new Date(value);
 
@@ -582,4 +908,8 @@ export class CompaniesPage implements OnInit {
           year: 'numeric',
         }).format(date);
   }
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

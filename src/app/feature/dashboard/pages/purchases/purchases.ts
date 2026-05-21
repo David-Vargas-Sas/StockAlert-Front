@@ -307,7 +307,12 @@ export class PurchasesPage implements OnInit {
       return;
     }
 
-    if (!Number.isInteger(request.items[0].quantity) || request.items[0].quantity < 1 || request.items[0].unitCost <= 0) {
+    if (
+      !Number.isInteger(request.items[0].quantity) ||
+      request.items[0].quantity < 1 ||
+      !Number.isFinite(request.items[0].unitCost) ||
+      request.items[0].unitCost <= 0
+    ) {
       this.createError.set('Ingresa una cantidad y costo unitario validos.');
       return;
     }
@@ -388,6 +393,10 @@ export class PurchasesPage implements OnInit {
   }
 
   purchaseStatusLabel(purchase: PurchaseRecord | null): string {
+    if (purchase?.statusLabel) {
+      return purchase.statusLabel;
+    }
+
     const status = String(purchase?.status || 'RECEIVED').toUpperCase();
     if (status === 'CANCELLED' || status === 'CANCELED') {
       return 'Anulada';
@@ -399,8 +408,8 @@ export class PurchasesPage implements OnInit {
   }
 
   purchaseStatusClass(purchase: PurchaseRecord | null): string {
-    const label = this.purchaseStatusLabel(purchase);
-    return label === 'Anulada' ? 'inactiva' : label === 'Pendiente' ? 'bajo-stock' : 'activa';
+    const status = String(purchase?.status || 'RECEIVED').toUpperCase();
+    return this.isPurchaseCancelled(purchase) ? 'inactiva' : status === 'PENDING' ? 'bajo-stock' : 'activa';
   }
 
   isPurchaseCancelled(purchase: PurchaseRecord | null): boolean {

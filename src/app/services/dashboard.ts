@@ -46,6 +46,7 @@ export interface LatestSale {
   customerName: string;
   total: number;
   status: string;
+  statusLabel?: string;
   saleDate: string;
 }
 
